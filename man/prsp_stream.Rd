@@ -4,8 +4,16 @@
 \alias{prsp_stream}
 \title{Stream comment scores with Perspective API}
 \usage{
-prsp_stream(.data, text = NULL, text_id = NULL, ..., safe_output = F,
-  verbose = F)
+prsp_stream(
+  .data,
+  text = NULL,
+  text_id = NULL,
+  ...,
+  safe_output = F,
+  verbose = F,
+  save = F,
+  dt_name = "persp"
+)
 }
 \arguments{
 \item{.data}{a dataset with a text and text_id column.}
@@ -14,11 +22,15 @@ prsp_stream(.data, text = NULL, text_id = NULL, ..., safe_output = F,
 
 \item{text_id}{a unique ID for the text that you supply (required)}
 
-\item{...}{arguments passed to \code{\link{prsp_score}}.}
+\item{...}{arguments passed to \code{\link{prsp_score}}. Don't forget to add the \code{score_model} argument (see \code{peRspective::prsp_models} for list of valid models).}
 
 \item{safe_output}{wraps the function into a \code{purrr::safely} environment (defaults to \code{FALSE}). Loop will run without pause and catch + output errors in a tidy \code{tibble} along with the results.}
 
 \item{verbose}{narrates the streaming procedure (defaults to \code{FALSE}).}
+
+\item{save}{NOT USABLE YET saves data into SQLite database (defaults to \code{FALSE}).}
+
+\item{dt_name}{NOT USABLE YET what is the name of the dataset? (defaults to \code{persp}).}
 }
 \value{
 a \code{tibble}
@@ -27,7 +39,7 @@ a \code{tibble}
 This function wraps \code{\link{prsp_score}} and loops over your text input. Provide a character string with your text and which scores you want to obtain. Make sure to keep track of your ratelimit with on \href{https://console.cloud.google.com/iam-admin/quotas}{the cloud console quota usage page}.
 }
 \details{
-For more details see \code{?peRspective} or \href{https://github.com/conversationai/perspectiveapi/blob/master/api_reference.md}{Perspective API documentation}
+For more details see \code{?peRspective} or \href{https://developers.perspectiveapi.com/s/docs}{Perspective API documentation}
 }
 \examples{
 \dontrun{

@@ -3,7 +3,12 @@ text_sample <- tibble::tibble(
             "I don't know what to say about this but it's not good. The commenter is just an idiot",
             "This goes even further!",
             "What the hell is going on?",
+            
+            
+            
             "Please. I don't get it. Explain it again",
+            
+            
             "Annoying and irrelevant! I'd rather watch the paint drying on the wall!"),
   textid = c("#efdcxct", "#ehfcsct",
              "#ekacxwt",  "#ewatxad",
@@ -251,4 +256,26 @@ test_that("verbose, score_sentences but no safe_output work together", {
   expect_equal(length(score), 6)
 
 })
+
+
+test_that("numeric text_id works", {
+  
+  testthat::skip_if(Sys.getenv("perspective_api_key") == "", 
+                    message = "perspective_api_key not available in environment. Skipping test.")
+  
+  
+  
+  score <- tibble::tibble(
+    text_id = c(1L, 2L),
+    text = c("Sample text comment", "And another one")
+  ) %>% 
+    prsp_stream(text = text,
+                text_id = text_id,
+                safe_output = T,
+                score_model = "TOXICITY")
+  
+  expect_equal(nrow(score), 2)
+  
+})
+
 

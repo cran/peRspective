@@ -4,12 +4,13 @@ globalVariables("type")
 globalVariables("summary_score")
 globalVariables("label")
 globalVariables(".")
+globalVariables("score_model")
 
 #' Stream comment scores with Perspective API
 #'
 #' This function wraps \code{\link{prsp_score}} and loops over your text input. Provide a character string with your text and which scores you want to obtain. Make sure to keep track of your ratelimit with on [the cloud console quota usage page](https://console.cloud.google.com/iam-admin/quotas).
 #'
-#' For more details see `?peRspective` or [Perspective API documentation](https://github.com/conversationai/perspectiveapi/blob/master/api_reference.md)
+#' For more details see `?peRspective` or [Perspective API documentation](https://developers.perspectiveapi.com/s/docs)
 #'
 #' @md
 #' @param .data a dataset with a text and text_id column.
@@ -17,7 +18,9 @@ globalVariables(".")
 #' @param text_id a unique ID for the text that you supply (required)
 #' @param safe_output wraps the function into a `purrr::safely` environment (defaults to `FALSE`). Loop will run without pause and catch + output errors in a tidy `tibble` along with the results.
 #' @param verbose narrates the streaming procedure (defaults to `FALSE`).
-#' @param ... arguments passed to \code{\link{prsp_score}}.
+#' @param ... arguments passed to \code{\link{prsp_score}}. Don't forget to add the \code{score_model} argument (see `peRspective::prsp_models` for list of valid models).
+#' @param save NOT USABLE YET saves data into SQLite database (defaults to `FALSE`).
+#' @param dt_name NOT USABLE YET what is the name of the dataset? (defaults to `persp`).
 #' @return a `tibble`
 #' @examples
 #' \dontrun{
@@ -62,7 +65,9 @@ prsp_stream <- function(.data,
                         text_id = NULL,
                         ...,
                         safe_output = F,
-                        verbose = F) {
+                        verbose = F,
+                        save = F,
+                        dt_name = "persp") {
   # browser()
   
   text_id <- dplyr::enquo(text_id)
@@ -76,6 +81,7 @@ prsp_stream <- function(.data,
   if (stringr::str_detect(rlang::as_label(text_id), "NULL")) {
     stop("You need to provide a text_id column.")
   }
+  
   
   text_col <- .data %>% dplyr::pull(!!text)
   id_col <- .data %>% dplyr::pull(!!text_id)
@@ -101,6 +107,15 @@ prsp_stream <- function(.data,
 
   ## keep function parameters
   prsp_params <- list(...)
+  
+  
+  if (is.null(prsp_params$score_model)) {
+    stop(stringr::str_glue("No Model type provided in score_model.\n\nShould be one of the following:\n\n{peRspective::prsp_models %>% glue::glue_collapse('\n')}"))
+  }
+
+  if (!all(prsp_params$score_model %in% prsp_models | prsp_params$score_model %in% prsp_exp_models)) {
+    stop(stringr::str_glue("Invalid Model type provided.\n\nShould be one of the following:\n\n{peRspective::prsp_models %>% glue::glue_collapse('\n')}"))
+  }
   
   ## loop over prsp_score
   final_text <- .data %>%
@@ -132,6 +147,7 @@ prsp_stream <- function(.data,
                           c(
                             list(text = .x$text),
                             list(text_id = .x$text_id),
+                            # list(score_model = .x$score_model),
                             prsp_params
                           ))
 
@@ -153,7 +169,7 @@ prsp_stream <- function(.data,
         ## always print text_id first
         cat(stringr::str_glue("text_id: {int_id}\n\n"))
 
-        # browser()
+        
         ## when safe output show errors as you go
         if (safe_output) {
           if ("error" %in% class(raw_text$error)) {
@@ -165,7 +181,6 @@ prsp_stream <- function(.data,
           }
 
         }
-# browser()
       
         print_score_labels(prsp_params, int_results)
 
@@ -186,7 +201,18 @@ prsp_stream <- function(.data,
       t() %>%
       tibble::as_tibble(rownames = .[1, ]) %>%
       purrr::set_names(c("text_id", "error")) %>%
-      dplyr::right_join(final_text %>% purrr::map_dfr("result"), by = "text_id")
+      dplyr::right_join(final_text %>% purrr::map_dfr("result") %>% dplyr::mutate(text_id = as.character(text_id)), by = "text_id")
+    
+    
+    if(is.numeric(id_col)){
+      final_text <- final_text %>%
+        dplyr::mutate(text_id = as.numeric(text_id))
+    }
+    
+    if(save){
+      if(!dir.exists("data")) dir.create("data")
+      db_append("data/{dt_name}.db", "perspective", data = final_text)
+    }
     
     return(final_text)
   }
@@ -194,6 +220,10 @@ prsp_stream <- function(.data,
   cat("Binding rows...\n")
   
   final_text <- dplyr::bind_rows(final_text)
+  
+  if(save){
+    db_append(glue::glue("{dt_name}.db"), "perspective", data = final_text)
+  }
   
   return(final_text)
 }
@@ -214,17 +244,6 @@ NULL
 #' @keywords datasets
 #' @name prsp_exp_models
 NULL
-
-
-# TODO: Write tests 
-# ss <- 
-  # tibble(ctext = "kdlfkmgkdfmgjgkfmg", textid = "#ewqyccfr") #%>%
-  # prsp_stream_nolimit(text_sample, text = ctext,
-  #             text_id = textid,
-  #             score_model = c("TOXICITY", "SEVERE_TOXICITY"),
-  #             score_sentences  = T,
-  #             verbose = T,
-  #             safe_output = F)
 
 
 print_score_labels <- function(prsp_params = NULL, int_results = NULL) {
@@ -258,7 +277,7 @@ print_score_labels <- function(prsp_params = NULL, int_results = NULL) {
       paste0("\t", .)
     
     cat(stringr::str_glue("{crayon::make_style('gray50')(score_label)}\n\n"))
-  }  else if (length(int_results) == 1) { ## there are not scores!
+  }  else if (length(int_results) == 1) { ## there are no scores!
     cat(stringr::str_glue("\t{crayon::red('NO SCORES')}\n\n\n"))
     
   }          
